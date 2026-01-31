@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LRC Time Axis Helper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- MD3 Design Tokens --- */
+        :root {
+            --md-sys-color-primary: #6750a4;
+            --md-sys-color-on-primary: #ffffff;
+            --md-sys-color-primary-container: #eaddff;
+            --md-sys-color-on-primary-container: #21005d;
+            
+            --md-sys-color-secondary: #625b71;
+            --md-sys-color-secondary-container: #e8def8;
+            --md-sys-color-on-secondary-container: #1d192b;
+
+            --md-sys-color-tertiary: #7d5260;
+            --md-sys-color-tertiary-container: #ffd8e4;
+            --md-sys-color-on-tertiary-container: #31111d;
+
+            --md-sys-color-error: #b3261e;
+            --md-sys-color-error-container: #f9dedc;
+            --md-sys-color-on-error-container: #410e0b;
+
+            --md-sys-color-surface: #fef7ff;
+            --md-sys-color-surface-container: #f3edf7;
+            --md-sys-color-surface-variant: #e7e0ec;
+            --md-sys-color-on-surface: #1d1b20;
+            --md-sys-color-on-surface-variant: #49454f;
+            
+            --md-sys-color-outline: #79747e;
+
+            --md-sys-elevation-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
+            --md-sys-shape-corner-small: 8px;
+            --md-sys-shape-corner-medium: 12px;
+            --md-sys-shape-corner-large: 16px;
+            --md-sys-shape-corner-full: 9999px;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--md-sys-color-surface);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* Changed for language selector */
+            box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        h1 { margin: 0; font-size: 1.25rem; font-weight: 500; }
+
+        /* Language Selector in Header */
+        .lang-select {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--md-sys-color-outline);
+            background: transparent;
+            color: var(--md-sys-color-on-surface);
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 360px 1fr;
+            gap: 16px;
+            padding: 24px;
+            flex: 1;
+            min-height: 0;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-y: hidden; 
+        }
+
+        /* --- Components --- */
+        .card {
+            background-color: var(--md-sys-color-surface-container);
+            border-radius: var(--md-sys-shape-corner-large);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(0,0,0,0.03);
+            min-height: 0; 
+        }
+
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;
+        }
+        .card-title { font-size: 0.875rem; font-weight: 500; color: var(--md-sys-color-on-surface-variant); }
+
+        .text-field {
+            flex: 1;
+            background-color: var(--md-sys-color-surface);
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: var(--md-sys-shape-corner-small);
+            padding: 16px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            color: var(--md-sys-color-on-surface);
+            outline: none;
+            white-space: pre;
+        }
+        .text-field:focus { border-color: var(--md-sys-color-primary); border-width: 2px; padding: 15px; }
+
+        /* Inputs & Selects */
+        .input-row { display: flex; gap: 8px; align-items: center; }
+        
+        input[type="number"], input[type="text"], select.md3-select {
+            width: 100%; padding: 12px 16px; background: var(--md-sys-color-surface);
+            border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small);
+            font-size: 0.95rem; color: var(--md-sys-color-on-surface); outline: none; box-sizing: border-box;
+            font-family: inherit;
+        }
+        input:focus, select.md3-select:focus { border-color: var(--md-sys-color-primary); border-width: 2px; padding: 11px 15px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            height: 40px; padding: 0 24px; border-radius: var(--md-sys-shape-corner-full);
+            font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none;
+            transition: all 0.2s ease; position: relative; overflow: hidden;
+            width: 100%; box-sizing: border-box;
+        }
+        .btn:active { transform: scale(0.98); }
+
+        .btn-filled { background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+        .btn-filled:hover { background-color: #553f93; box-shadow: var(--md-sys-elevation-1); }
+
+        .btn-tonal { background-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+        .btn-tonal:hover { background-color: #dccae9; }
+
+        .btn-error-tonal { background-color: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+        .btn-error-tonal:hover { background-color: #f2b8b5; }
+        
+        .btn-text { background: transparent; color: var(--md-sys-color-primary); width: auto; padding: 0 12px; height: 32px; }
+        .btn-text:hover { background-color: rgba(103, 80, 164, 0.08); }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Switch */
+        .switch-container {
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; padding: 8px 0; user-select: none;
+        }
+        .switch-label { font-size: 0.875rem; color: var(--md-sys-color-on-surface); }
+        .md3-switch { position: relative; width: 52px; height: 32px; flex-shrink: 0; }
+        .md3-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--md-sys-color-surface-variant);
+            border: 2px solid var(--md-sys-color-outline);
+            border-radius: 32px; transition: .3s;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px; left: 6px; bottom: 6px;
+            background-color: var(--md-sys-color-outline); border-radius: 50%; transition: .3s;
+        }
+        input:checked + .slider { background-color: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+        input:checked + .slider:before { transform: translateX(20px); background-color: var(--md-sys-color-on-primary); height: 24px; width: 24px; left: 4px; bottom: 2px; }
+
+        /* Layout Helpers */
+        .helper-text { font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant); margin-top: 6px; margin-bottom: 12px; }
+        .controls-panel { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; padding-right: 4px; }
+        .section-divider { height: 1px; background-color: var(--md-sys-color-outline); opacity: 0.2; margin: 4px 0; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #bdbdbd; border-radius: 4px; }
+
+        /* Snackbar */
+        #snackbar {
+            visibility: hidden; min-width: 250px; background-color: #322f35; color: #f4eff4;
+            text-align: center; border-radius: 8px; padding: 14px 24px;
+            position: fixed; z-index: 99; left: 50%; bottom: 30px; transform: translateX(-50%);
+            box-shadow: var(--md-sys-elevation-2); opacity: 0; transition: opacity 0.3s, bottom 0.3s;
+        }
+        #snackbar.show { visibility: visible; opacity: 1; bottom: 40px; }
+
+        /* Mobile Responsive */
+        @media (max-width: 900px) {
+            body { height: auto; overflow-y: auto; overflow-x: hidden; }
+            .main-container {
+                display: flex; flex-direction: column;
+                height: auto; overflow: visible; padding: 16px; padding-bottom: 80px;
+            }
+            .text-field { min-height: 200px; height: 200px; }
+            .controls-panel { overflow: visible; height: auto; }
+            .editor-box.input-area { order: 1; }
+            .controls-card { order: 2; }
+            .editor-box.output-area { order: 3; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 data-i18n="app_title">LRC Time Axis Helper</h1>
+        <select id="langSelector" class="lang-select" onchange="changeLanguage(this.value)">
+            <option value="zh-CN">中文</option>
+            <option value="en">English</option>
+            <option value="el">Ελληνικά</option>
+            <option value="fr">Français</option>
+        </select>
+    </header>
+
+    <div class="main-container">
+        
+        <!-- Input Area -->
+        <div class="card editor-box input-area">
+            <div class="card-header">
+                <span class="card-title" data-i18n="input_label">Original Lyrics</span>
+                <button class="btn btn-text" onclick="clearInput()" data-i18n="btn_clear">Clear</button>
+            </div>
+            <textarea id="inputText" class="text-field" data-i18n-placeholder="input_placeholder" placeholder="Paste content here..."></textarea>
+        </div>
+
+        <!-- Controls Area -->
+        <div class="card controls-card">
+            <div class="controls-panel">
+                
+                <!-- Scope Switch -->
+                <div>
+                    <span class="card-title" data-i18n="scope_title">Time Axis Scope</span>
+                    <label class="switch-container">
+                        <span class="switch-label" data-i18n="scope_switch_label">Only adjust &lt;...&gt; (Word tags)</span>
+                        <div class="md3-switch">
+                            <input type="checkbox" id="onlyWordTagsSwitch" onchange="toggleModeTip()">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                    <div class="helper-text" id="modeTip" data-i18n="tip_scope_all">Default: Adjusts [ ] and &lt; &gt;</div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <!-- Format Cleaning (Merged into Select) -->
+                <div>
+                    <span class="card-title" data-i18n="clean_title">Format Cleaning</span>
+                    <div style="height: 12px;"></div>
+                    <div class="btn-group-vertical">
+                        <select id="cleanTargetSelect" class="md3-select">
+                            <option value="translation" data-i18n="clean_opt_trans">Translation/Romaji (Repeated lines)</option>
+                            <option value="original" data-i18n="clean_opt_orig">Original Lyrics (First lines)</option>
+                            <option value="all" data-i18n="clean_opt_all">All Lines</option>
+                        </select>
+                        <div style="height: 8px;"></div>
+                        <button class="btn btn-error-tonal" onclick="executeRemoveTags()" data-i18n="btn_execute_clean">
+                            Remove &lt;...&gt; Tags
+                        </button>
+                    </div>
+                    <div class="helper-text" data-i18n="clean_helper">Identifies based on timestamp changes</div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <!-- Precise Offset -->
+                <div>
+                    <span class="card-title" data-i18n="precise_title">Precise Offset (ms)</span>
+                    <div style="height: 12px;"></div>
+                    <div class="input-row">
+                        <input type="number" id="preciseOffset" value="0" placeholder="1000">
+                    </div>
+                    <button class="btn btn-filled" style="width: 100%; margin-top: 12px;" onclick="applyPreciseOffset()" data-i18n="btn_apply">Apply Offset</button>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <!-- Quick Buttons -->
+                <div>
+                    <span class="card-title" data-i18n="quick_title">Quick Adjust</span>
+                    <div style="height: 12px;"></div>
+                    <div id="quickButtons" class="btn-grid"></div>
+                </div>
+
+                <!-- Config -->
+                <div style="margin-top: 12px;">
+                    <div class="input-row">
+                        <input type="text" id="customBtnConfig" value="100, 500" placeholder="100, 500">
+                        <button class="btn btn-tonal" style="width: auto; padding: 0 16px;" onclick="renderButtons()" data-i18n="btn_update">Update</button>
+                    </div>
+                </div>
+
+                <div style="flex:1"></div>
+                
+                <button class="btn btn-filled" style="background-color: #2e7d32; margin-top: 16px;" onclick="copyOutput()" data-i18n="btn_copy">
+                    Copy Result
+                </button>
+            </div>
+        </div>
+
+        <!-- Output Area -->
+        <div class="card editor-box output-area">
+            <div class="card-header">
+                <span class="card-title" data-i18n="output_label">Processed Result</span>
+            </div>
+            <textarea id="outputText" class="text-field" readonly placeholder="Result..."></textarea>
+        </div>
+
+    </div>
+
+    <div id="snackbar">Message</div>
+
+    <script>
+        // --- i18n Configuration ---
+        const translations = {
+            'zh-CN': {
+                app_title: "LRC 时间轴助手",
+                input_label: "原始歌词",
+                btn_clear: "清空",
+                input_placeholder: "请粘贴 LRC/ELRC 内容...\n支持格式：[01:30.00] 或 <01:30.500>",
+                scope_title: "时间轴调节范围",
+                scope_switch_label: "仅调节 <...> (字间)",
+                tip_scope_all: "当前：调节所有时间 [ ] 和 < >",
+                tip_scope_word: "当前：仅调节字间时间 < > (行首保持不变)",
+                clean_title: "格式清理工具",
+                clean_opt_trans: "清理 注音/翻译行 (附行)",
+                clean_opt_orig: "清理 原词行 (首行)",
+                clean_opt_all: "清理 所有行",
+                btn_execute_clean: "移除 <...> 逐字标签",
+                clean_helper: "基于时间戳判断：首行为原词，重复时间戳为注音/翻译",
+                precise_title: "精确偏移 (ms)",
+                btn_apply: "应用偏移",
+                quick_title: "快捷微调",
+                btn_update: "更新",
+                btn_copy: "复制结果",
+                output_label: "处理结果",
+                msg_empty: "内容为空",
+                msg_input_req: "请输入歌词内容",
+                msg_offset: "已偏移",
+                msg_cleaned: "已清理",
+                msg_copied: "已复制到剪贴板",
+                msg_copy_fail: "复制失败，请手动复制",
+                msg_cleared: "已清空",
+                msg_invalid_num: "请输入有效数值"
+            },
+            'en': {
+                app_title: "LRC Timestamp Helper",
+                input_label: "Original Lyrics",
+                btn_clear: "Clear",
+                input_placeholder: "Paste LRC/ELRC content here...\nSupports [01:30.00] or <01:30.500>",
+                scope_title: "Time Axis Scope",
+                scope_switch_label: "Only adjust <...> (Word tags)",
+                tip_scope_all: "Mode: Adjust ALL timestamps [ ] & < >",
+                tip_scope_word: "Mode: Adjust ONLY word tags < > (Keep line start)",
+                clean_title: "Format Cleaning",
+                clean_opt_trans: "Clean Translation/Romaji (Sub-lines)",
+                clean_opt_orig: "Clean Original Lyrics (First lines)",
+                clean_opt_all: "Clean All Lines",
+                btn_execute_clean: "Remove <...> Tags",
+                clean_helper: "Identifies based on timestamp: unique is original, repeated is translation",
+                precise_title: "Precise Offset (ms)",
+                btn_apply: "Apply Offset",
+                quick_title: "Quick Adjust",
+                btn_update: "Update",
+                btn_copy: "Copy Result",
+                output_label: "Processed Result",
+                msg_empty: "No content",
+                msg_input_req: "Please input lyrics",
+                msg_offset: "Offset applied",
+                msg_cleaned: "Tags removed from",
+                msg_copied: "Copied to clipboard",
+                msg_copy_fail: "Copy failed, please copy manually",
+                msg_cleared: "Cleared",
+                msg_invalid_num: "Invalid number"
+            },
+            'el': {
+                app_title: "Βοηθός Χρονισμού LRC",
+                input_label: "Αρχικοί Στίχοι",
+                btn_clear: "Καθαρισμός",
+                input_placeholder: "Επικολλήστε περιεχόμενο LRC/ELRC εδώ...",
+                scope_title: "Εύρος Χρονισμού",
+                scope_switch_label: "Προσαρμογή μόνο <...> (ετικέτες λέξεων)",
+                tip_scope_all: "Λειτουργία: Προσαρμογή ΟΛΩΝ [ ] & < >",
+                tip_scope_word: "Λειτουργία: Προσαρμογή ΜΟΝΟ λέξεων < >",
+                clean_title: "Καθαρισμός Μορφής",
+                clean_opt_trans: "Καθαρισμός Μετάφρασης (Δευτερεύουσες γραμμές)",
+                clean_opt_orig: "Καθαρισμός Αρχικών Στίχων (Πρώτες γραμμές)",
+                clean_opt_all: "Καθαρισμός Όλων",
+                btn_execute_clean: "Αφαίρεση Ετικετών <...>",
+                clean_helper: "Αναγνώριση βάσει χρονικής στιγμής",
+                precise_title: "Ακριβής Μετατόπιση (ms)",
+                btn_apply: "Εφαρμογή",
+                quick_title: "Γρήγορη Ρύθμιση",
+                btn_update: "Ενημέρωση",
+                btn_copy: "Αντιγραφή",
+                output_label: "Αποτέλεσμα",
+                msg_empty: "Κενό περιεχόμενο",
+                msg_input_req: "Παρακαλώ εισάγετε στίχους",
+                msg_offset: "Μετατόπιση εφαρμόστηκε",
+                msg_cleaned: "Ετικέτες αφαιρέθηκαν",
+                msg_copied: "Αντιγράφηκε στο πρόχειρο",
+                msg_copy_fail: "Αποτυχία αντιγραφής",
+                msg_cleared: "Καθαρίστηκε",
+                msg_invalid_num: "Μη έγκυρος αριθμός"
+            },
+            'fr': {
+                app_title: "Assistant Temporel LRC",
+                input_label: "Paroles Originales",
+                btn_clear: "Effacer",
+                input_placeholder: "Collez le contenu LRC/ELRC ici...",
+                scope_title: "Portée Temporelle",
+                scope_switch_label: "Ajuster seulement <...> (tags mots)",
+                tip_scope_all: "Mode : Ajuster TOUT [ ] & < >",
+                tip_scope_word: "Mode : Ajuster SEULEMENT < > (garder début de ligne)",
+                clean_title: "Nettoyage de Format",
+                clean_opt_trans: "Nettoyer Traduction/Romaji (Lignes sec.)",
+                clean_opt_orig: "Nettoyer Paroles Originales (Lignes princ.)",
+                clean_opt_all: "Nettoyer Tout",
+                btn_execute_clean: "Supprimer Tags <...>",
+                clean_helper: "Identifie selon l'horodatage",
+                precise_title: "Décalage Précis (ms)",
+                btn_apply: "Appliquer",
+                quick_title: "Réglage Rapide",
+                btn_update: "Mettre à jour",
+                btn_copy: "Copier le résultat",
+                output_label: "Résultat Traité",
+                msg_empty: "Contenu vide",
+                msg_input_req: "Veuillez entrer des paroles",
+                msg_offset: "Décalage appliqué",
+                msg_cleaned: "Tags supprimés",
+                msg_copied: "Copié dans le presse-papier",
+                msg_copy_fail: "Échec de la copie",
+                msg_cleared: "Effacé",
+                msg_invalid_num: "Nombre invalide"
+            }
+        };
+
+        let currentLang = 'zh-CN';
+
+        // --- Core Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initLanguage();
+            renderButtons();
+        });
+
+        // Initialize Language
+        function initLanguage() {
+            // 1. Try to get previous selection
+            const savedLang = localStorage.getItem('lrc_helper_lang');
+            
+            // 2. Or detect browser language
+            const browserLang = navigator.language || navigator.userLanguage; 
+            // Map browser codes (e.g., 'en-US' -> 'en', 'fr-FR' -> 'fr')
+            let detectedLang = 'zh-CN';
+            if (browserLang.startsWith('en')) detectedLang = 'en';
+            else if (browserLang.startsWith('el')) detectedLang = 'el';
+            else if (browserLang.startsWith('fr')) detectedLang = 'fr';
+            
+            currentLang = savedLang || detectedLang;
+            
+            // Validate availability
+            if (!translations[currentLang]) currentLang = 'zh-CN';
+
+            // Set selector and update text
+            document.getElementById('langSelector').value = currentLang;
+            updateInterfaceText();
+        }
+
+        function changeLanguage(langCode) {
+            currentLang = langCode;
+            localStorage.setItem('lrc_helper_lang', langCode);
+            updateInterfaceText();
+            toggleModeTip(); // Update dynamic text immediately
+        }
+
+        function t(key) {
+            return translations[currentLang][key] || key;
+        }
+
+        function updateInterfaceText() {
+            // Update simple text content
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang][key]) {
+                    el.textContent = translations[currentLang][key];
+                }
+            });
+            // Update placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (translations[currentLang][key]) {
+                    el.placeholder = translations[currentLang][key];
+                }
+            });
+        }
+
+        // Logic Regex
+        const timeRegex = /([\[<])(\d{1,2}):(\d{1,2})(\.\d{2,3})([\]>])/g;
+        const wordTagRegex = /<\d{1,2}:\d{1,2}(\.\d{2,3})?>/g;
+        const lineStartRegex = /^\[(\d{1,2}:\d{1,2}(\.\d{2,3})?)\]/;
+
+        function renderButtons() {
+            const container = document.getElementById('quickButtons');
+            const configInput = document.getElementById('customBtnConfig').value;
+            let values = configInput.split(/[,，]/).map(v => parseInt(v.trim())).filter(v => !isNaN(v) && v > 0);
+            values = [...new Set(values)].sort((a, b) => a - b);
+            container.innerHTML = '';
+            
+            if (values.length === 0) return;
+
+            values.forEach(val => {
+                const btnPrev = document.createElement('button');
+                btnPrev.className = 'btn btn-tonal';
+                btnPrev.textContent = `-${val}`;
+                btnPrev.onclick = () => processLyrics(-val);
+                
+                const btnNext = document.createElement('button');
+                btnNext.className = 'btn btn-tonal';
+                btnNext.textContent = `+${val}`;
+                btnNext.onclick = () => processLyrics(val);
+                
+                container.appendChild(btnPrev);
+                container.appendChild(btnNext);
+            });
+        }
+
+        function toggleModeTip() {
+            const isOnlyWord = document.getElementById('onlyWordTagsSwitch').checked;
+            const tip = document.getElementById('modeTip');
+            tip.textContent = isOnlyWord ? t('tip_scope_word') : t('tip_scope_all');
+            // Flash toast is annoying on language switch, so only show on interaction?
+            // For now, simple text update is enough.
+        }
+
+        // --- Merged Remove Logic ---
+        function executeRemoveTags() {
+            const target = document.getElementById('cleanTargetSelect').value; // translation, original, all
+            const input = document.getElementById('inputText');
+            const output = document.getElementById('outputText');
+            let text = input.value;
+            if (!text.trim()) { showToast(t('msg_empty')); return; }
+
+            const lines = text.split('\n');
+            let lastTimestamp = "";
+            
+            const processedLines = lines.map(line => {
+                const match = line.match(lineStartRegex);
+                const currentTimestamp = match ? match[1] : null;
+                
+                let isFirstLine = false;
+
+                if (currentTimestamp) {
+                    if (currentTimestamp !== lastTimestamp) {
+                        isFirstLine = true;
+                        lastTimestamp = currentTimestamp;
+                    } else {
+                        isFirstLine = false;
+                    }
+                } else {
+                    lastTimestamp = "";
+                }
+
+                let shouldClean = false;
+                if (target === 'all') shouldClean = true;
+                else if (target === 'original' && isFirstLine) shouldClean = true;
+                else if (target === 'translation' && !isFirstLine) shouldClean = true;
+
+                return shouldClean ? line.replace(wordTagRegex, '') : line;
+            });
+
+            const newText = processedLines.join('\n');
+            input.value = newText;
+            output.value = newText;
+
+            // Show meaningful toast
+            let labelKey = 'clean_opt_all';
+            if (target === 'original') labelKey = 'clean_opt_orig';
+            if (target === 'translation') labelKey = 'clean_opt_trans';
+            
+            // Simple logic to get the translated option name without fetching from DOM
+            showToast(`${t('msg_cleaned')} (${t(labelKey)})`);
+        }
+
+        function processLyrics(offsetMs) {
+            const input = document.getElementById('inputText');
+            const output = document.getElementById('outputText');
+            const text = input.value;
+            const onlyAdjustWordTags = document.getElementById('onlyWordTagsSwitch').checked;
+
+            if (!text.trim()) { showToast(t('msg_input_req')); return; }
+
+            let sourceText = text;
+            const newText = sourceText.replace(timeRegex, (match, leftBr, min, sec, msPart, rightBr) => {
+                if (onlyAdjustWordTags && leftBr === '[') {
+                    return match;
+                }
+
+                const minutes = parseInt(min, 10);
+                const seconds = parseInt(sec, 10);
+                let msStr = msPart.substring(1); 
+                let currentTotalMs = minutes * 60 * 1000 + seconds * 1000 + parseInt(msStr.padEnd(3, '0').substring(0, 3));
+
+                let newTotalMs = currentTotalMs + offsetMs;
+                if (newTotalMs < 0) newTotalMs = 0;
+
+                const newMin = Math.floor(newTotalMs / 60000);
+                const remainMs = newTotalMs % 60000;
+                const newSec = Math.floor(remainMs / 1000);
+                const newMs = remainMs % 1000;
+
+                const sMin = newMin.toString().padStart(2, '0');
+                const sSec = newSec.toString().padStart(2, '0');
+                const sMs = newMs.toString().padStart(3, '0'); 
+                
+                let finalMsStr = "";
+                if (msPart.length === 3) finalMsStr = "." + sMs.substring(0, 2);
+                else finalMsStr = "." + sMs;
+
+                return `${leftBr}${sMin}:${sSec}${finalMsStr}${rightBr}`;
+            });
+
+            input.value = newText; 
+            output.value = newText;
+            
+            const sign = offsetMs > 0 ? '+' : '';
+            showToast(`${t('msg_offset')} ${sign}${offsetMs}ms`);
+        }
+
+        function applyPreciseOffset() {
+            const val = parseInt(document.getElementById('preciseOffset').value);
+            if (isNaN(val) || val === 0) { showToast(t('msg_invalid_num')); return; }
+            processLyrics(val);
+        }
+
+        async function copyOutput() {
+            const output = document.getElementById('outputText');
+            if (!output.value) { showToast(t('msg_empty')); return; }
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(output.value);
+                    showToast(t('msg_copied'));
+                    return;
+                } catch (err) { console.warn(err); }
+            }
+
+            try {
+                output.select();
+                output.setSelectionRange(0, 99999); 
+                const successful = document.execCommand('copy');
+                output.blur(); 
+                if (successful) showToast(t('msg_copied'));
+                else throw new Error('execCommand fail');
+            } catch (err) {
+                showToast(t('msg_copy_fail'));
+            }
+        }
+
+        function clearInput() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('outputText').value = '';
+            showToast(t('msg_cleared'));
+        }
+
+        function showToast(message) {
+            const snackbar = document.getElementById("snackbar");
+            snackbar.textContent = message;
+            snackbar.className = "show";
+            setTimeout(function(){ snackbar.className = snackbar.className.replace("show", ""); }, 3000);
+        }
+    </script>
+</body>
+</html>
