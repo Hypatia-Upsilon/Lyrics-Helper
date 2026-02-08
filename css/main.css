@@ -177,6 +177,30 @@ input:checked + .slider:before { transform: translateX(18px); background-color: 
 .section-divider { height: 1px; background-color: var(--md-sys-color-outline-variant); opacity: 0.5; margin: 4px 0; }
 .helper-text { font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px; line-height: 1.4; }
 
+/* --- Badge Styling --- */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-family: var(--font-mono);
+    transition: all 0.3s ease;
+}
+.badge-neutral {
+    background-color: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface-variant);
+}
+.badge-positive {
+    background-color: #e6f4ea;
+    color: #137333;
+    border: 1px solid #c6e7ce;
+}
+.badge-negative {
+    background-color: #fce8e6;
+    color: #c5221f;
+    border: 1px solid #fad2cf;
+}
+
 /* --- Scrollbar --- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

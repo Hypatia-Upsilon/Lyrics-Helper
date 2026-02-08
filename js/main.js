@@ -104,6 +104,7 @@ const translations = {
 let currentLang = 'zh-CN';
 const MAX_HISTORY = 20;
 let historyStack = [];
+let accumulatedOffset = 0; // 累计偏移量
 
 // --- Regex Definitions ---
 const timeRegex = /([\[<])(\d{1,2}):(\d{1,2})(\.\d{1,3})([\]>])/g;
@@ -116,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLanguage();
     renderQuickButtons();
     attachEventListeners();
+    updateOffsetUI();
 });
 
 function attachEventListeners() {
@@ -130,24 +132,46 @@ function attachEventListeners() {
     document.getElementById('executeCleanBtn').addEventListener('click', executeRemoveTags);
     document.getElementById('copyResultBtn').addEventListener('click', copyOutput);
     
-    // Auto-save on manual edit (debounced is better, but simple input works for local)
+    // 手动修改输入框时，重置偏移量计数
+    document.getElementById('inputText').addEventListener('input', function() {
+        if (accumulatedOffset !== 0) {
+            accumulatedOffset = 0;
+            updateOffsetUI();
+        }
+    });
+    
+    // 焦点离开或变更时保存状态
     document.getElementById('inputText').addEventListener('change', saveState);
 }
 
 // --- Undo System ---
 function saveState() {
     const currentVal = document.getElementById('inputText').value;
-    if (historyStack.length > 0 && historyStack[historyStack.length - 1] === currentVal) return;
-    historyStack.push(currentVal);
+    
+    // 避免重复保存相同内容
+    if (historyStack.length > 0 && historyStack[historyStack.length - 1].text === currentVal) return;
+    
+    // 保存文本和当时的偏移量
+    historyStack.push({
+        text: currentVal,
+        offset: accumulatedOffset
+    });
+    
     if (historyStack.length > MAX_HISTORY) historyStack.shift();
     updateUndoBtn();
 }
 
 function undo() {
     if (historyStack.length === 0) return;
-    const prev = historyStack.pop();
-    document.getElementById('inputText').value = prev;
-    document.getElementById('outputText').value = prev;
+    const prevState = historyStack.pop();
+    
+    document.getElementById('inputText').value = prevState.text;
+    document.getElementById('outputText').value = prevState.text;
+    
+    // 恢复偏移量
+    accumulatedOffset = prevState.offset;
+    updateOffsetUI();
+    
     updateUndoBtn();
     showToast(t('msg_undo'));
 }
@@ -158,7 +182,23 @@ function updateUndoBtn() {
     else btn.classList.add('disabled');
 }
 
-// --- Core Logic: Sync Translation Tags (New Feature) ---
+// --- UI Helper: Update Offset Badge ---
+function updateOffsetUI() {
+    const badge = document.getElementById('offsetBadge');
+    
+    if (accumulatedOffset === 0) {
+        badge.textContent = "0ms";
+        badge.className = "badge badge-neutral";
+    } else if (accumulatedOffset > 0) {
+        badge.textContent = `+${accumulatedOffset}ms`;
+        badge.className = "badge badge-positive";
+    } else {
+        badge.textContent = `${accumulatedOffset}ms`;
+        badge.className = "badge badge-negative";
+    }
+}
+
+// --- Core Logic: Sync Translation Tags ---
 function syncTranslationTags() {
     const input = document.getElementById('inputText');
     const text = input.value;
@@ -172,25 +212,19 @@ function syncTranslationTags() {
     let currentLastTag = null;
 
     const processedLines = lines.map(line => {
-        // Find line timestamp [mm:ss.xx]
         const match = line.match(lineStartRegex);
         if (!match) {
-            // If no timestamp, reset tracking (safe assumption usually)
-            // Or keep tracking if we assume interleaved comments. 
-            // Resetting is safer to avoid applying tags to metadata.
             lastTimestamp = null;
             return line;
         }
 
-        const currentTimestamp = match[1]; // e.g. "01:00.00"
-        const fullTimestampTag = match[0]; // e.g. "[01:00.00]"
+        const currentTimestamp = match[1];
+        const fullTimestampTag = match[0]; 
         const content = line.substring(fullTimestampTag.length);
 
         if (currentTimestamp !== lastTimestamp) {
-            // === ORIGINAL LINE (New Timestamp) ===
+            // 原词行 (新时间戳)
             lastTimestamp = currentTimestamp;
-            
-            // Extract tags
             const tags = content.match(exactTagRegex);
             if (tags && tags.length > 0) {
                 currentFirstTag = tags[0];
@@ -201,24 +235,13 @@ function syncTranslationTags() {
             }
             return line;
         } else {
-            // === TRANSLATION LINE (Same Timestamp) ===
-            // Only apply if we have tags from the original line
-            // And maybe avoid double applying if line already has tags?
-            // For now, we apply if tags exist in original.
+            // 翻译行 (重复时间戳)
             if (currentFirstTag && currentLastTag) {
-                // If the translation line already contains <...> tags, we skip or overwrite?
-                // Simple logic: Wrap the content (trimmed)
-                // Remove existing start/end tags? No, user asked to "add".
-                
-                // Let's assume translation text is plain text usually.
                 const cleanContent = content.trim();
-                
-                // Check if already tagged to avoid duplication
+                // 避免重复添加
                 if (cleanContent.startsWith(currentFirstTag) && cleanContent.endsWith(currentLastTag)) {
                     return line;
                 }
-
-                // Construct: [Time]<Start>Content<End>
                 return `${fullTimestampTag}${currentFirstTag}${content}${currentLastTag}`;
             }
             return line;
@@ -293,7 +316,6 @@ function processLyrics(offsetMs) {
         
         let msStr = msPart.substring(1); 
         let msVal = 0;
-        // Normalize ms length for calculation
         if (msStr.length === 2) msVal = parseInt(msStr) * 10;
         else if (msStr.length === 3) msVal = parseInt(msStr);
         else if (msStr.length === 1) msVal = parseInt(msStr) * 100;
@@ -312,7 +334,6 @@ function processLyrics(offsetMs) {
         const sMsFull = newMs.toString().padStart(3, '0'); 
         
         let newMsPart = "";
-        // Try to keep original precision style (2 or 3 digits)
         if (msStr.length === 3) {
             newMsPart = "." + sMsFull;
         } else {
@@ -324,6 +345,10 @@ function processLyrics(offsetMs) {
 
     input.value = newText; 
     document.getElementById('outputText').value = newText;
+    
+    // 更新累积偏移量
+    accumulatedOffset += offsetMs;
+    updateOffsetUI();
     
     const sign = offsetMs > 0 ? '+' : '';
     showToast(`${t('msg_offset')} ${sign}${offsetMs}ms`);
@@ -349,7 +374,7 @@ function renderQuickButtons() {
         const btnPrev = document.createElement('button');
         btnPrev.className = 'btn btn-tonal';
         btnPrev.textContent = `-${val}`;
-        btnPrev.onclick = () => processLyrics(-val); // Keep simple click for dynamic buttons
+        btnPrev.onclick = () => processLyrics(-val); 
         
         const btnNext = document.createElement('button');
         btnNext.className = 'btn btn-tonal';
@@ -393,6 +418,8 @@ function clearInput() {
     saveState();
     document.getElementById('inputText').value = '';
     document.getElementById('outputText').value = '';
+    accumulatedOffset = 0;
+    updateOffsetUI();
     showToast(t('msg_cleared'));
 }
 
