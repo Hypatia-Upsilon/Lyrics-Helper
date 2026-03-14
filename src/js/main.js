@@ -15,17 +15,24 @@ const translations = {
         btn_update: "设定",
         tools_title: "高级工具",
         btn_sync_tags: "同步首尾时间戳到翻译行",
-        tip_sync_tags: "将原词行的首尾 <> 时间戳复制到翻译行（注音）行。",
-        clean_opt_trans: "目标：注音/翻译行 (重复时间)",
-        clean_opt_orig: "目标：原词行 (首次时间)",
-        clean_opt_all: "目标：所有行",
+        tip_sync_tags: "将原词行的首尾 <> 时间戳复制到同时间的翻译（注音）行。",
+        tools_remove_lines: "移除同时间轴行 (多行清理)",
+        opt_rm_keep1: "仅保留 第 1 行 (移除所有附行)",
+        opt_rm_2: "移除 第 2 行",
+        opt_rm_3: "移除 第 3 行",
+        opt_rm_4: "移除 第 4 行",
+        btn_remove: "移除",
+        clean_opt_trans: "清理标签：翻译/附行",
+        clean_opt_orig: "清理标签：原词/首行",
+        clean_opt_all: "清理标签：所有行",
         btn_execute_clean: "移除 <...> 标签",
         btn_copy: "复制结果",
         output_label: "处理结果",
         msg_empty: "内容为空",
         msg_input_req: "请输入歌词内容",
         msg_offset: "已偏移",
-        msg_cleaned: "已清理",
+        msg_cleaned: "已清理标签",
+        msg_lines_removed: "已移除多余行",
         msg_tags_synced: "已同步首尾时间戳",
         msg_copied: "已复制到剪贴板",
         msg_copy_fail: "复制失败，请手动复制",
@@ -48,10 +55,16 @@ const translations = {
         btn_update: "Set",
         tools_title: "Advanced Tools",
         btn_sync_tags: "Sync Tags to Translation",
-        tip_sync_tags: "Copy start/end <> tags from original line to translation line.",
-        clean_opt_trans: "Target: Translation (Duplicate Time)",
-        clean_opt_orig: "Target: Original (First Time)",
-        clean_opt_all: "Target: All Lines",
+        tip_sync_tags: "Copy start/end <> tags from original line to duplicate-time translation lines.",
+        tools_remove_lines: "Remove Duplicate Lines",
+        opt_rm_keep1: "Keep ONLY 1st line",
+        opt_rm_2: "Remove 2nd line",
+        opt_rm_3: "Remove 3rd line",
+        opt_rm_4: "Remove 4th line",
+        btn_remove: "Remove",
+        clean_opt_trans: "Clean Tag: Translation",
+        clean_opt_orig: "Clean Tag: Original",
+        clean_opt_all: "Clean Tag: All Lines",
         btn_execute_clean: "Remove <...> Tags",
         btn_copy: "Copy Result",
         output_label: "Result",
@@ -59,6 +72,7 @@ const translations = {
         msg_input_req: "Please input lyrics",
         msg_offset: "Offset applied",
         msg_cleaned: "Tags removed",
+        msg_lines_removed: "Duplicate lines removed",
         msg_tags_synced: "Tags synced to translation",
         msg_copied: "Copied to clipboard",
         msg_copy_fail: "Copy failed, please copy manually",
@@ -73,7 +87,7 @@ const translations = {
         input_placeholder: "Collez le contenu LRC/ELRC ici...",
         scope_title: "Portée Temporelle",
         scope_switch_label: "Ajuster seulement <...> (tags mots)",
-        tip_scope_all: "Mode : Ajuster TOUT [ ] & < >",
+        tip_scope_all: "Mode : Ajuster TOUT[ ] & < >",
         tip_scope_word: "Mode : Ajuster SEULEMENT < > (garder début de ligne)",
         precise_title: "Décalage Précis (ms)",
         btn_apply: "Appliquer",
@@ -82,8 +96,14 @@ const translations = {
         tools_title: "Outils Avancés",
         btn_sync_tags: "Synchro Tags Trad.",
         tip_sync_tags: "Copie les tags début/fin <> vers la ligne de traduction.",
-        clean_opt_trans: "Cible : Traduction (Temps dupliqué)",
-        clean_opt_orig: "Cible : Original (Premier temps)",
+        tools_remove_lines: "Supprimer Lignes Dupliquées",
+        opt_rm_keep1: "Garder SEULEMENT 1ère",
+        opt_rm_2: "Supprimer 2ème ligne",
+        opt_rm_3: "Supprimer 3ème ligne",
+        opt_rm_4: "Supprimer 4ème ligne",
+        btn_remove: "Supprimer",
+        clean_opt_trans: "Cible : Traduction",
+        clean_opt_orig: "Cible : Original",
         clean_opt_all: "Cible : Tout",
         btn_execute_clean: "Supprimer Tags <...>",
         btn_copy: "Copier le résultat",
@@ -92,6 +112,7 @@ const translations = {
         msg_input_req: "Veuillez entrer des paroles",
         msg_offset: "Décalage appliqué",
         msg_cleaned: "Tags supprimés",
+        msg_lines_removed: "Lignes supprimées",
         msg_tags_synced: "Tags synchronisés",
         msg_copied: "Copié",
         msg_copy_fail: "Échec de la copie",
@@ -103,8 +124,8 @@ const translations = {
 
 let currentLang = 'zh-CN';
 const MAX_HISTORY = 20;
-let historyStack = [];
-let accumulatedOffset = 0; // 累计偏移量
+let historyStack =[];
+let accumulatedOffset = 0; 
 
 // --- Regex Definitions ---
 const timeRegex = /([\[<])(\d{1,2}):(\d{1,2})(\.\d{1,3})([\]>])/g;
@@ -127,12 +148,13 @@ function attachEventListeners() {
     document.getElementById('applyOffsetBtn').addEventListener('click', applyPreciseOffset);
     document.getElementById('updateBtnsBtn').addEventListener('click', renderQuickButtons);
     
-    // New Features
+    // Advanced Tools
     document.getElementById('syncTransTagsBtn').addEventListener('click', syncTranslationTags);
+    document.getElementById('executeRemoveLineBtn').addEventListener('click', executeRemoveDuplicateLines);
     document.getElementById('executeCleanBtn').addEventListener('click', executeRemoveTags);
     document.getElementById('copyResultBtn').addEventListener('click', copyOutput);
     
-    // 手动修改输入框时，重置偏移量计数
+    // Text changes
     document.getElementById('inputText').addEventListener('input', function() {
         if (accumulatedOffset !== 0) {
             accumulatedOffset = 0;
@@ -140,18 +162,14 @@ function attachEventListeners() {
         }
     });
     
-    // 焦点离开或变更时保存状态
     document.getElementById('inputText').addEventListener('change', saveState);
 }
 
 // --- Undo System ---
 function saveState() {
     const currentVal = document.getElementById('inputText').value;
-    
-    // 避免重复保存相同内容
     if (historyStack.length > 0 && historyStack[historyStack.length - 1].text === currentVal) return;
     
-    // 保存文本和当时的偏移量
     historyStack.push({
         text: currentVal,
         offset: accumulatedOffset
@@ -168,7 +186,6 @@ function undo() {
     document.getElementById('inputText').value = prevState.text;
     document.getElementById('outputText').value = prevState.text;
     
-    // 恢复偏移量
     accumulatedOffset = prevState.offset;
     updateOffsetUI();
     
@@ -182,20 +199,79 @@ function updateUndoBtn() {
     else btn.classList.add('disabled');
 }
 
-// --- UI Helper: Update Offset Badge ---
+// --- UI Helper: Update Multiple Offset Badges ---
 function updateOffsetUI() {
-    const badge = document.getElementById('offsetBadge');
+    const badges = document.querySelectorAll('.offset-badge');
     
-    if (accumulatedOffset === 0) {
-        badge.textContent = "0ms";
-        badge.className = "badge badge-neutral";
-    } else if (accumulatedOffset > 0) {
-        badge.textContent = `+${accumulatedOffset}ms`;
-        badge.className = "badge badge-positive";
-    } else {
-        badge.textContent = `${accumulatedOffset}ms`;
-        badge.className = "badge badge-negative";
+    badges.forEach(badge => {
+        if (accumulatedOffset === 0) {
+            badge.textContent = "0ms";
+            badge.className = "offset-badge badge badge-neutral";
+        } else if (accumulatedOffset > 0) {
+            badge.textContent = `+${accumulatedOffset}ms`;
+            badge.className = "offset-badge badge badge-positive";
+        } else {
+            badge.textContent = `${accumulatedOffset}ms`;
+            badge.className = "offset-badge badge badge-negative";
+        }
+    });
+}
+
+// --- Core Logic: Remove Duplicate Lines ---
+function executeRemoveDuplicateLines() {
+    const input = document.getElementById('inputText');
+    const text = input.value;
+    if (!text.trim()) { showToast(t('msg_empty')); return; }
+
+    saveState();
+
+    const targetOption = document.getElementById('removeLineSelect').value;
+    const lines = text.split('\n');
+    let lastTimestamp = null;
+    let groupIndex = 0;
+    
+    const processedLines =[];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(lineStartRegex);
+
+        if (!match) {
+            // 保留没有时间戳的行（如元数据、空行）
+            processedLines.push(line);
+            continue;
+        }
+
+        const currentTimestamp = match[1];
+
+        if (currentTimestamp === lastTimestamp) {
+            groupIndex++;
+        } else {
+            lastTimestamp = currentTimestamp;
+            groupIndex = 1;
+        }
+
+        let shouldRemove = false;
+        
+        if (targetOption === 'keep1') {
+            if (groupIndex > 1) shouldRemove = true;
+        } else {
+            // 对于 "2", "3", "4" 的处理
+            const targetIndex = parseInt(targetOption);
+            if (groupIndex === targetIndex) {
+                shouldRemove = true;
+            }
+        }
+
+        if (!shouldRemove) {
+            processedLines.push(line);
+        }
     }
+
+    const newText = processedLines.join('\n');
+    input.value = newText;
+    document.getElementById('outputText').value = newText;
+    showToast(t('msg_lines_removed'));
 }
 
 // --- Core Logic: Sync Translation Tags ---
@@ -223,7 +299,6 @@ function syncTranslationTags() {
         const content = line.substring(fullTimestampTag.length);
 
         if (currentTimestamp !== lastTimestamp) {
-            // 原词行 (新时间戳)
             lastTimestamp = currentTimestamp;
             const tags = content.match(exactTagRegex);
             if (tags && tags.length > 0) {
@@ -235,10 +310,8 @@ function syncTranslationTags() {
             }
             return line;
         } else {
-            // 翻译行 (重复时间戳)
             if (currentFirstTag && currentLastTag) {
                 const cleanContent = content.trim();
-                // 避免重复添加
                 if (cleanContent.startsWith(currentFirstTag) && cleanContent.endsWith(currentLastTag)) {
                     return line;
                 }
@@ -346,7 +419,6 @@ function processLyrics(offsetMs) {
     input.value = newText; 
     document.getElementById('outputText').value = newText;
     
-    // 更新累积偏移量
     accumulatedOffset += offsetMs;
     updateOffsetUI();
     
