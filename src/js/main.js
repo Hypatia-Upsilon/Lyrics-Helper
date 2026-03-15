@@ -16,11 +16,10 @@ const translations = {
         tools_title: "高级工具",
         btn_sync_tags: "同步首尾时间戳到翻译行",
         tip_sync_tags: "将原词行的首尾 <> 时间戳复制到同时间的翻译（注音）行。",
-        tools_remove_lines: "移除同时间轴行 (多行清理)",
+        tools_remove_lines: "移除同时间轴行 (自动检测)",
         opt_rm_keep1: "仅保留 第 1 行 (移除所有附行)",
-        opt_rm_2: "移除 第 2 行",
-        opt_rm_3: "移除 第 3 行",
-        opt_rm_4: "移除 第 4 行",
+        opt_rm_n: "移除 第 {n} 行",
+        opt_rm_none: "未检测到重复行",
         btn_remove: "移除",
         clean_opt_trans: "清理标签：翻译/附行",
         clean_opt_orig: "清理标签：原词/首行",
@@ -44,7 +43,7 @@ const translations = {
         app_title: "LRC Timestamp Helper",
         input_label: "Original/Current",
         btn_clear: "Clear",
-        input_placeholder: "Paste LRC/ELRC content here...\nSupports [01:30.00] or <01:30.500>",
+        input_placeholder: "Paste LRC/ELRC content here...\nSupports[01:30.00] or <01:30.500>",
         scope_title: "Time Scope",
         scope_switch_label: "Only adjust <...> (Word tags)",
         tip_scope_all: "Mode: Adjust ALL timestamps [ ] & < >",
@@ -56,11 +55,10 @@ const translations = {
         tools_title: "Advanced Tools",
         btn_sync_tags: "Sync Tags to Translation",
         tip_sync_tags: "Copy start/end <> tags from original line to duplicate-time translation lines.",
-        tools_remove_lines: "Remove Duplicate Lines",
+        tools_remove_lines: "Remove Duplicate Lines (Auto Detect)",
         opt_rm_keep1: "Keep ONLY 1st line",
-        opt_rm_2: "Remove 2nd line",
-        opt_rm_3: "Remove 3rd line",
-        opt_rm_4: "Remove 4th line",
+        opt_rm_n: "Remove {n} line",
+        opt_rm_none: "No duplicate lines detected",
         btn_remove: "Remove",
         clean_opt_trans: "Clean Tag: Translation",
         clean_opt_orig: "Clean Tag: Original",
@@ -98,9 +96,8 @@ const translations = {
         tip_sync_tags: "Copie les tags début/fin <> vers la ligne de traduction.",
         tools_remove_lines: "Supprimer Lignes Dupliquées",
         opt_rm_keep1: "Garder SEULEMENT 1ère",
-        opt_rm_2: "Supprimer 2ème ligne",
-        opt_rm_3: "Supprimer 3ème ligne",
-        opt_rm_4: "Supprimer 4ème ligne",
+        opt_rm_n: "Supprimer la {n} ligne",
+        opt_rm_none: "Aucune ligne dupliquée",
         btn_remove: "Supprimer",
         clean_opt_trans: "Cible : Traduction",
         clean_opt_orig: "Cible : Original",
@@ -139,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderQuickButtons();
     attachEventListeners();
     updateOffsetUI();
+    updateRemoveLineOptions(); // 初始化时自动扫描一次
 });
 
 function attachEventListeners() {
@@ -154,12 +152,13 @@ function attachEventListeners() {
     document.getElementById('executeCleanBtn').addEventListener('click', executeRemoveTags);
     document.getElementById('copyResultBtn').addEventListener('click', copyOutput);
     
-    // Text changes
+    // 监听输入，实时重置偏移量并动态更新重复行选项
     document.getElementById('inputText').addEventListener('input', function() {
         if (accumulatedOffset !== 0) {
             accumulatedOffset = 0;
             updateOffsetUI();
         }
+        updateRemoveLineOptions();
     });
     
     document.getElementById('inputText').addEventListener('change', saveState);
@@ -183,13 +182,12 @@ function undo() {
     if (historyStack.length === 0) return;
     const prevState = historyStack.pop();
     
-    document.getElementById('inputText').value = prevState.text;
-    document.getElementById('outputText').value = prevState.text;
+    setInputValue(prevState.text);
     
     accumulatedOffset = prevState.offset;
     updateOffsetUI();
-    
     updateUndoBtn();
+    
     showToast(t('msg_undo'));
 }
 
@@ -197,6 +195,13 @@ function updateUndoBtn() {
     const btn = document.getElementById('undoBtn');
     if (historyStack.length > 0) btn.classList.remove('disabled');
     else btn.classList.add('disabled');
+}
+
+// --- 辅助：统一修改文本框值的函数，自动触发UI刷新 ---
+function setInputValue(newText) {
+    document.getElementById('inputText').value = newText;
+    document.getElementById('outputText').value = newText;
+    updateRemoveLineOptions(); // 文本改变后重新扫描同时间轴行数
 }
 
 // --- UI Helper: Update Multiple Offset Badges ---
@@ -217,15 +222,94 @@ function updateOffsetUI() {
     });
 }
 
+// --- Core Logic: 动态生成“移除同时间轴行”选项 ---
+function formatOrdinal(n, lang) {
+    if (lang === 'zh-CN') return n.toString(); 
+    if (lang === 'fr') return n === 1 ? '1ère' : `${n}ème`;
+    // English rules
+    let j = n % 10, k = n % 100;
+    if (j == 1 && k != 11) return n + "st";
+    if (j == 2 && k != 12) return n + "nd";
+    if (j == 3 && k != 13) return n + "rd";
+    return n + "th";
+}
+
+function updateRemoveLineOptions() {
+    const text = document.getElementById('inputText').value;
+    const lines = text.split('\n');
+    let maxGroupSize = 0;
+    let currentGroupSize = 0;
+    let lastTimestamp = null;
+
+    // 扫描找出最大重复次数
+    for (let line of lines) {
+        const match = line.match(lineStartRegex);
+        if (match) {
+            const ts = match[1];
+            if (ts === lastTimestamp) {
+                currentGroupSize++;
+                if (currentGroupSize > maxGroupSize) maxGroupSize = currentGroupSize;
+            } else {
+                lastTimestamp = ts;
+                currentGroupSize = 1;
+                if (maxGroupSize === 0) maxGroupSize = 1; 
+            }
+        }
+    }
+
+    const select = document.getElementById('removeLineSelect');
+    const btn = document.getElementById('executeRemoveLineBtn');
+    
+    // 保存当前选中的值，以便刷新后恢复
+    const previousSelection = select.value;
+    select.innerHTML = '';
+
+    // 如果没有重复行
+    if (maxGroupSize < 2) {
+        const opt = document.createElement('option');
+        opt.value = 'none';
+        opt.textContent = t('opt_rm_none');
+        select.appendChild(opt);
+        select.disabled = true;
+        btn.disabled = true;
+        return;
+    }
+
+    select.disabled = false;
+    btn.disabled = false;
+
+    // 添加 "仅保留第一行" 选项
+    const optKeep = document.createElement('option');
+    optKeep.value = 'keep1';
+    optKeep.textContent = t('opt_rm_keep1');
+    select.appendChild(optKeep);
+
+    // 动态添加第2行到第n行
+    const textTemplate = t('opt_rm_n');
+    for (let i = 2; i <= maxGroupSize; i++) {
+        const opt = document.createElement('option');
+        opt.value = i.toString();
+        const ordinalStr = formatOrdinal(i, currentLang);
+        opt.textContent = textTemplate.replace('{n}', ordinalStr);
+        select.appendChild(opt);
+    }
+    
+    // 如果之前的选项还在新生成的列表里，就恢复选中
+    if (Array.from(select.options).some(opt => opt.value === previousSelection)) {
+        select.value = previousSelection;
+    }
+}
+
 // --- Core Logic: Remove Duplicate Lines ---
 function executeRemoveDuplicateLines() {
-    const input = document.getElementById('inputText');
-    const text = input.value;
+    const text = document.getElementById('inputText').value;
     if (!text.trim()) { showToast(t('msg_empty')); return; }
 
     saveState();
 
     const targetOption = document.getElementById('removeLineSelect').value;
+    if (targetOption === 'none') return;
+
     const lines = text.split('\n');
     let lastTimestamp = null;
     let groupIndex = 0;
@@ -256,7 +340,6 @@ function executeRemoveDuplicateLines() {
         if (targetOption === 'keep1') {
             if (groupIndex > 1) shouldRemove = true;
         } else {
-            // 对于 "2", "3", "4" 的处理
             const targetIndex = parseInt(targetOption);
             if (groupIndex === targetIndex) {
                 shouldRemove = true;
@@ -268,16 +351,13 @@ function executeRemoveDuplicateLines() {
         }
     }
 
-    const newText = processedLines.join('\n');
-    input.value = newText;
-    document.getElementById('outputText').value = newText;
+    setInputValue(processedLines.join('\n'));
     showToast(t('msg_lines_removed'));
 }
 
 // --- Core Logic: Sync Translation Tags ---
 function syncTranslationTags() {
-    const input = document.getElementById('inputText');
-    const text = input.value;
+    const text = document.getElementById('inputText').value;
     if (!text.trim()) { showToast(t('msg_empty')); return; }
 
     saveState();
@@ -321,16 +401,13 @@ function syncTranslationTags() {
         }
     });
 
-    const newText = processedLines.join('\n');
-    input.value = newText;
-    document.getElementById('outputText').value = newText;
+    setInputValue(processedLines.join('\n'));
     showToast(t('msg_tags_synced'));
 }
 
 // --- Core Logic: Cleaning ---
 function executeRemoveTags() {
-    const input = document.getElementById('inputText');
-    let text = input.value;
+    const text = document.getElementById('inputText').value;
     if (!text.trim()) { showToast(t('msg_empty')); return; }
 
     saveState();
@@ -362,16 +439,13 @@ function executeRemoveTags() {
         return shouldClean ? line.replace(wordTagRegex, '') : line;
     });
 
-    const newText = processedLines.join('\n');
-    input.value = newText;
-    document.getElementById('outputText').value = newText;
+    setInputValue(processedLines.join('\n'));
     showToast(t('msg_cleaned'));
 }
 
 // --- Core Logic: Time Offset ---
 function processLyrics(offsetMs) {
-    const input = document.getElementById('inputText');
-    const text = input.value;
+    const text = document.getElementById('inputText').value;
     const onlyAdjustWordTags = document.getElementById('onlyWordTagsSwitch').checked;
 
     if (!text.trim()) { showToast(t('msg_input_req')); return; }
@@ -416,8 +490,7 @@ function processLyrics(offsetMs) {
         return `${leftBr}${sMin}:${sSec}${newMsPart}${rightBr}`;
     });
 
-    input.value = newText; 
-    document.getElementById('outputText').value = newText;
+    setInputValue(newText);
     
     accumulatedOffset += offsetMs;
     updateOffsetUI();
@@ -437,7 +510,7 @@ function renderQuickButtons() {
     const container = document.getElementById('quickButtons');
     const configInput = document.getElementById('customBtnConfig').value;
     let values = configInput.split(/[,，]/).map(v => parseInt(v.trim())).filter(v => !isNaN(v) && v > 0);
-    values = [...new Set(values)].sort((a, b) => a - b);
+    values =[...new Set(values)].sort((a, b) => a - b);
     container.innerHTML = '';
     
     if (values.length === 0) return;
@@ -488,8 +561,7 @@ async function copyOutput() {
 
 function clearInput() {
     saveState();
-    document.getElementById('inputText').value = '';
-    document.getElementById('outputText').value = '';
+    setInputValue('');
     accumulatedOffset = 0;
     updateOffsetUI();
     showToast(t('msg_cleared'));
@@ -528,6 +600,7 @@ function changeLanguage(langCode) {
     updateInterfaceText();
     toggleModeTip();
     renderQuickButtons();
+    updateRemoveLineOptions(); // 语言改变时刷新选项文本
 }
 
 function t(key) {

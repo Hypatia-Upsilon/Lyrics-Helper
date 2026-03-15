@@ -135,6 +135,18 @@ input:focus, select.md3-select:focus { border-color: var(--md-sys-color-primary)
 }
 .btn:active { transform: scale(0.96); }
 
+/* Disabled 状态支持 */
+.btn:disabled, .btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: var(--md-sys-color-surface-variant);
+}
+
 .btn-filled { background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
 .btn-filled:hover { opacity: 0.9; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
@@ -146,7 +158,6 @@ input:focus, select.md3-select:focus { border-color: var(--md-sys-color-primary)
 
 .btn-text { background: transparent; color: var(--md-sys-color-primary); width: auto; padding: 0 8px; height: 32px; }
 .btn-text:hover { background-color: rgba(103, 80, 164, 0.08); }
-.btn-text.disabled { color: var(--md-sys-color-outline); cursor: not-allowed; }
 
 .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .btn-group-vertical { display: flex; flex-direction: column; gap: 8px; }

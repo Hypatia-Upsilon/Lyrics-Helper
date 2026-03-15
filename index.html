@@ -104,15 +104,12 @@
 
                     <div style="height: 12px;"></div>
 
-                    <!-- 移除同时间轴的额外行 -->
+                    <!-- 动态移除同时间轴行 -->
                     <span style="font-size: 0.85rem; font-weight: 500; color: var(--md-sys-color-on-surface-variant);" data-i18n="tools_remove_lines">Remove Duplicate Lines</span>
                     <div style="height: 6px;"></div>
                     <div class="input-row" style="margin-bottom: 12px;">
                         <select id="removeLineSelect" class="md3-select">
-                            <option value="keep1" data-i18n="opt_rm_keep1">Keep ONLY 1st line</option>
-                            <option value="2" data-i18n="opt_rm_2">Remove 2nd line</option>
-                            <option value="3" data-i18n="opt_rm_3">Remove 3rd line</option>
-                            <option value="4" data-i18n="opt_rm_4">Remove 4th line</option>
+                            <!-- 选项由 JS 动态生成 -->
                         </select>
                         <button id="executeRemoveLineBtn" class="btn btn-error-tonal" style="width: auto; padding: 0 16px;" data-i18n="btn_remove">Remove</button>
                     </div>
